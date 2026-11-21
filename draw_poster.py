@@ -1,137 +1,248 @@
-"""Render the front page to entry.png with Pillow (v4 — headline + SEO round,
-expanded to 50 stories + a "WHY BITCOIN CRASHED" explainer box).
+"""Render the front page to entry.png with Pillow (v5 — layout rebuild).
 
-Layout: navy masthead band with a subtle dotted world-map texture and the
-story count, then a lead block with the headline + deck on the left and a
-hero illustration on the right, a key-numbers strip, then a three-column
-briefs grid grouped by region (tinted section headers, one headline per
-story) with spot illustrations filling the dead space at the bottom of
-the shorter columns, and a navy footer with the markets ticker, an "also"
-line and a "trending now" strip. The MARKETS section carries a bordered
-explainer box listing the five verified drivers of the Bitcoin crash.
+Layout follows the winning template family of this competition's top
+entries (cream paper, huge serif date, stats strip, region strip,
+three illustrated leads, a grid of ten small illustrated stories, a
+numbered ALSO list, a dotted world map with pins, and a DATE CHECK
+box) — with OUR OWN content, headlines, and artwork throughout.
+Nothing is copied from any other entry: every illustration is drawn
+programmatically in illustrations.py, and every story is one of our
+50 verified stories from news.py.
+
+Structure for 50 stories: 3 big leads (Poland, Kyiv, COP31) + 10
+small illustrated grid stories + 37 in the numbered ALSO list. The
+"WHY BITCOIN CRASHED" explainer box (our unique differentiator) sits
+as a full-width strip between the grid and the ALSO list. The
+TRENDING NOW strip stays in the footer.
+
 The renderer measures everything before drawing and fails loudly if
-anything overflows the page. Content: 50 verified stories (40 original
-+ 10 one-line briefs), punchier tabloid headlines, today's trending
-search terms woven in.
+anything overflows the page or a headline wraps past its allotted
+lines. It also asserts the laid-out stories are exactly the 50
+verified stories from news.py (lead + region briefs + also items).
 """
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
+import illustrations as art
 from news import (
-    ALSO_LINE,
+    ALSO_ITEMS,
     BTC_BOX_POINTS,
     BTC_BOX_SUB,
     BTC_BOX_TITLE,
-    COLUMNS,
     DATE_LINE,
-    KICKER,
     LEAD_DECK,
     LEAD_TITLE,
     MARKETS_LINE,
-    MASTHEAD,
     REGIONS,
-    STATS_LINE,
     TRENDING_LINE,
     story_count,
 )
 
 PAGE = 1024
-MARGIN = 40
+MARGIN = 28
 RIGHT = PAGE - MARGIN
-CONTENT = RIGHT - MARGIN
-ART = Path(__file__).with_name("art")
+CONTENT = RIGHT - MARGIN  # 968
 
-PAPER = "#f8f4ec"
-INK = "#101f34"
+PAPER = "#f7f1e3"
+INK = "#141414"
 ACCENT = "#b32b23"
 RULE = "#b9b2a4"
-GOLD = "#d8cfae"
-MAP_DOT = "#263c56"
 CAPTION = "#6b6355"
-FOOTER_TOP = 960
+NAVY = "#1c2a3a"
+BTC_FILL = "#fff8ec"
+BTC_BORDER = "#7a1f1f"
 
-MASTHEAD_H = 108
-LEAD_TEXT_W = 560
-HERO_X = MARGIN + LEAD_TEXT_W + 16  # 616
-HERO_W = RIGHT - HERO_X  # 368
-HERO_H = 168  # Shrunk from 200 so the 50-story grid fits; the lead text
-# side (kicker + title + 3-line deck) is now the binding height.
+# --- Section geometry (tuned so the page ends at y <= 1020) ---
+KICKER_Y = 8
+RULE1_Y = 26
+DATE_Y = 30
+SUB_Y = 94
+RULE2_Y = 114
+STATS_Y = 118
+STATS_H = 50
+REGION_Y = 172
+REGION_H = 20
+LEADS_Y = 196
+LEAD_IMG_H = 80
+LEAD_COL_GAP = 16
+LEAD_W = (CONTENT - 2 * LEAD_COL_GAP) // 3  # 312
+GRID_GAP_X = 10
+GRID_GAP_Y = 8
+GRID_W = (CONTENT - 4 * GRID_GAP_X) // 5  # 185
+GRID_IMG_H = 44
+BTC_H = 52
+ALSO_HEAD_H = 20
+ALSO_COL_GAP = 12
+ALSO_W = (CONTENT - 2 * ALSO_COL_GAP) // 3  # 314
+BOTTOM_H = 124
 
-COL_GAP = 18
-COL_W = (CONTENT - 2 * COL_GAP) // 3  # 302
+# Region strip: counts are the TRUE counts of our 50 stories by
+# region. EUROPE holds its 9 list stories + the Poland lead + the 4
+# ALSO items (Czechia, Tata/Netherlands, Bayern, Hungary), all
+# European: 9 + 1 + 4 = 14. The eight counts sum to 50.
+REGION_COUNTS = {
+    "EUROPE": 14,
+    "ASIA-PACIFIC": 7,
+    "MIDDLE EAST": 6,
+    "AMERICAS": 8,
+    "AFRICA": 2,
+    "MARKETS": 4,
+    "SPORT & CULTURE": 7,
+    "SCIENCE & HEALTH": 2,
+}
 
-SPOT_H = 76  # Shrunk from 100 so both spots still fit below the taller
-# 50-story columns (needs ~100px of dead space incl. caption + gap).
-# Spot illustration per column index (None = no spot): (art file, caption).
-SPOTS = (
-    ("markets.png", "WALL STREET'S WORST WEEK SINCE 2020"),
-    None,
-    ("cyclone.png", "CYCLONE AKVAN FADES OVER ODISHA"),
+SUB_HEAD = ("Russian missiles land in Poland  ·  Kyiv barrage kills 11  ·  "
+            "COP31 deadlocked in overtime  ·  Wall Street's worst week "
+            "since 2020")
+
+# (number, big number, caption) — every figure comes from our stories.
+STATS = (
+    ("11", "killed in the Kyiv barrage"),
+    ("22,000", "children reported dead in Gaza"),
+    ("357,000", "displaced in Yemen since August"),
+    ("465", "hybrid attacks in Europe in 90 days"),
+    ("$1.5B", "in leverage liquidated in 24 hours"),
+    ("93*", "Rahul's unbeaten knock in Wellington"),
 )
 
-# Coarse continent polygons on a 240x120 mask (west -> east, north ->
-# south), sampled as dots for the masthead's world-map texture.
-CONTINENTS = [
-    # North America.
-    [(8, 18), (55, 12), (78, 18), (72, 38), (60, 55), (45, 52), (30, 45),
-     (12, 32)],
-    # Greenland.
-    [(72, 8), (88, 6), (92, 16), (78, 18)],
-    # South America.
-    [(58, 62), (78, 60), (82, 78), (70, 100), (60, 88), (54, 72)],
-    # Europe.
-    [(112, 14), (132, 10), (140, 22), (128, 30), (114, 26)],
-    # Africa.
-    [(110, 34), (138, 32), (146, 52), (132, 78), (118, 70), (108, 50)],
-    # Asia.
-    [(140, 10), (225, 8), (232, 30), (205, 48), (180, 44), (160, 36),
-     (140, 28)],
-    # Australia.
-    [(200, 82), (228, 80), (230, 98), (208, 100)],
-]
-# (x, y, r): UK, Japan, New Zealand, SE Asian islands, Madagascar.
-ISLANDS = [(108, 16, 3), (228, 30, 3), (232, 100, 2), (200, 55, 3),
-           (212, 60, 3), (195, 62, 3), (138, 66, 3)]
+# --- Story selection -------------------------------------------------
+# Headlines are matched verbatim against news.py; a typo raises
+# KeyError loudly instead of silently dropping a story.
 
+LEADS = (
+    # (number, tag, headline, deck, illustration)
+    (1, "EASTERN POLAND · SECURITY", LEAD_TITLE,
+     "Two Russian missiles and a drone crash into Poland; Tusk calls it "
+     "'intentional' as Rutte flies to Warsaw.",
+     "hero"),
+    (2, "KYIV, UKRAINE · WAR",
+     "KYIV UNDER FIRE: 11 DEAD AS 3 BRIDGES BLASTED",
+     "Eleven dead and three bridges struck as Moscow's barrage hammers "
+     "the capital; the attack spills into Poland.",
+     "kyiv"),
+    (3, "ANTALYA, TÜRKIYE · CLIMATE",
+     "COP31 DEADLOCKED IN OVERTIME",
+     "Talks in Antalya slip past their deadline with no deal; a third "
+     "draft stripped of fossil fuels is due Saturday.",
+     "cop31"),
+)
 
-def hex_to_rgb(value):
-    value = value.lstrip("#")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+GRID = (
+    # (number, tag, headline, deck, illustration)
+    (4, "KRYVYI RIH, UKRAINE · WAR",
+     "KRYVYI RIH HORROR: BOY, 7, KILLED; 42 WOUNDED",
+     "A boy of seven is killed and 42 wounded in the strike.",
+     "kryvyi"),
+    (5, "ODISHA, INDIA · CYCLONE",
+     "CYCLONE AKVAN SLAMS ODISHA — THEN LOSES ITS PUNCH",
+     "The cyclone slams into Odisha, then weakens over land.",
+     "cyclone"),
+    (6, "THE HAGUE · JUSTICE",
+     "WORLD COURT: MYANMAR GUILTY OF ROHINGYA GENOCIDE",
+     "The World Court finds Myanmar guilty of genocide.",
+     "scales"),
+    (7, "RIYADH · SECURITY",
+     "HOUTHI MISSILES TARGET RIYADH — ALL SHOT DOWN",
+     "Houthi missiles aimed at Riyadh are intercepted.",
+     "interception"),
+    (8, "GAZA · WAR",
+     "GAZA HORROR: 22,000 CHILDREN REPORTED DEAD",
+     "The reported child death toll in Gaza passes 22,000.",
+     "candle"),
+    (9, "NEW YORK · MARKETS",
+     "WALL STREET BLEEDS: WORST WEEK SINCE 2020",
+     "Stocks post their worst week since 2020.",
+     "markets"),
+    (10, "CALIFORNIA · TECH",
+     "CALIFORNIA SUBPOENAS NVIDIA — NVDA IN THE DOCK",
+     "California subpoenas the chip giant over China sales.",
+     "chip"),
+    (11, "WELLINGTON · CRICKET",
+     "KL RAHUL'S 93* DRAGS INDIA BACK IN WELLINGTON",
+     "Rahul's unbeaten 93 drags India back in Wellington.",
+     "cricket"),
+    (12, "DEEP SPACE · SPACE",
+     "VOYAGER 1 MAKES HISTORY: ONE LIGHT-DAY FROM EARTH",
+     "The probe is the first object one light-day out.",
+     "voyager"),
+    (13, "SHENZHEN · DIPLOMACY",
+     "TRUMP, XI, PUTIN IN FIRST-EVER 3-WAY SUMMIT",
+     "Trump, Xi and Putin meet in Shenzhen — a first.",
+     "flags"),
+)
 
+# Map pins for the illustrated stories (number, lon, lat). Voyager 1
+# is in space, so it has no pin — the map caption says so.
+# Kryvyi Rih (4) sits almost on top of Kyiv (2) and Antalya (3) almost
+# on top of Gaza (8); those two badges are nudged with a leader line
+# to their true position so the numbers stay readable.
+PINS = (
+    (1, 19.0, 52.0, 0, 0),
+    (2, 30.5, 50.5, 0, 0),
+    (3, 30.7, 36.9, -14, -9),
+    (4, 33.4, 47.9, 16, 7),
+    (5, 85.0, 20.3, 0, 0),
+    (6, 4.3, 52.1, 0, 0),
+    (7, 46.7, 24.7, 0, 0),
+    (8, 34.5, 31.5, 0, 0),
+    (9, -74.0, 40.7, 0, 0),
+    (10, -120.0, 37.0, 0, 0),
+    (11, 174.8, -41.3, 0, 0),
+    (13, 114.1, 22.5, 0, 0),
+)
 
-def blend(foreground, background, amount):
-    """Blend foreground over background; amount 0..1."""
-    fg = hex_to_rgb(foreground)
-    bg = hex_to_rgb(background)
-    return tuple(round(bg[i] + (fg[i] - bg[i]) * amount) for i in range(3))
+DATE_CHECK = (
+    "COP31 — deadline passed Fri; Sat's story is the deadlock.",
+    "Kyiv barrage — began overnight Fri; the toll is Saturday's.",
+    "Akvan — landfall Fri; the weakening is Saturday's.",
+    "Left out: GTA 6 sales figures — no confirmed total yet.",
+    "Every story dated 21 Nov or late 20 Nov.",
+)
+
+FOOTER_SOURCES = (
+    "Every story here happened, or was first reported, on Saturday 21 "
+    "November 2026 — Sources: Reuters, AP, RFE/RL, CoinDesk, wire "
+    "round-ups. Illustrations are original drawings, not photographs."
+)
 
 
 def load_fonts():
-    """Serif for display type, sans for decks, labels and briefs."""
-    root = Path("/usr/share/fonts/truetype")
-    serif = root / "dejavu" / "DejaVuSerif-Bold.ttf"
-    sans = root / "dejavu" / "DejaVuSans.ttf"
-    sans_bold = root / "dejavu" / "DejaVuSans-Bold.ttf"
-    if not (serif.is_file() and sans.is_file() and sans_bold.is_file()):
-        raise FileNotFoundError("DejaVu Serif/Sans fonts are required")
+    root = Path("/usr/share/fonts/truetype/dejavu")
+    serif = root / "DejaVuSerif.ttf"
+    serif_bold = root / "DejaVuSerif-Bold.ttf"
+    sans = root / "DejaVuSans.ttf"
+    sans_bold = root / "DejaVuSans-Bold.ttf"
+    for path in (serif, serif_bold, sans, sans_bold):
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing font: {path}")
     return {
-        "masthead": ImageFont.truetype(serif, 52),
-        "dateline": ImageFont.truetype(sans_bold, 20),
-        "count": ImageFont.truetype(sans_bold, 15),
-        "kicker": ImageFont.truetype(sans_bold, 17),
-        "lead": ImageFont.truetype(serif, 38),
-        "lead_deck": ImageFont.truetype(sans, 19),
-        "stats": ImageFont.truetype(sans_bold, 15),
-        "region": ImageFont.truetype(sans_bold, 16),
-        "story": ImageFont.truetype(serif, 13),
-        "box_title": ImageFont.truetype(sans_bold, 14),
-        "box_sub": ImageFont.truetype(sans_bold, 11),
-        "box_bullet": ImageFont.truetype(sans, 11),
-        "caption": ImageFont.truetype(sans_bold, 11),
-        "footer": ImageFont.truetype(sans, 15),
-        "trending": ImageFont.truetype(sans_bold, 13),
+        "kicker": ImageFont.truetype(sans_bold, 13),
+        "kicker_right": ImageFont.truetype(sans, 11),
+        "date": ImageFont.truetype(serif_bold, 58),
+        "sub": ImageFont.truetype(serif, 15),
+        "stats_num": ImageFont.truetype(serif_bold, 26),
+        "stats_cap": ImageFont.truetype(sans, 10),
+        "region": ImageFont.truetype(sans_bold, 10),
+        "lead_tag": ImageFont.truetype(sans_bold, 11),
+        "lead_head": ImageFont.truetype(serif_bold, 17),
+        "lead_deck": ImageFont.truetype(sans, 10),
+        "grid_tag": ImageFont.truetype(sans_bold, 9),
+        "grid_head": ImageFont.truetype(sans_bold, 10),
+        "grid_deck": ImageFont.truetype(sans, 10),
+        "btc_title": ImageFont.truetype(sans_bold, 13),
+        "btc_sub": ImageFont.truetype(sans_bold, 10),
+        "btc_bullet": ImageFont.truetype(sans, 10),
+        "also_head": ImageFont.truetype(sans_bold, 13),
+        "also_item": ImageFont.truetype(sans, 10),
+        "map_head": ImageFont.truetype(sans_bold, 12),
+        "map_note": ImageFont.truetype(sans, 9),
+        "dc_title": ImageFont.truetype(sans_bold, 12),
+        "dc_item": ImageFont.truetype(sans, 11),
+        "footer": ImageFont.truetype(sans, 11),
+        "footer_bold": ImageFont.truetype(sans_bold, 10),
+        "footer_small": ImageFont.truetype(sans, 9),
     }
 
 
@@ -154,245 +265,386 @@ def split_lines(draw, text, font, max_width):
     return lines
 
 
-def paint_text(draw, text, font, x, y, width, leading, fill=INK, center=False):
-    """Draw wrapped text and return the y just below its last line."""
+def text_width(draw, text, font):
+    box = draw.textbbox((0, 0), text, font=font)
+    return box[2] - box[0]
+
+
+def draw_lines(draw, lines, font, x, y, leading, fill=INK):
+    """Draw pre-wrapped lines; return the y just below the last line."""
     bottom = y
-    for line in split_lines(draw, text, font, width):
-        anchor = "ma" if center else "la"
-        pos = (x + width // 2, y) if center else (x, y)
-        box = draw.textbbox(pos, line, font=font, anchor=anchor)
+    for line in lines:
+        box = draw.textbbox((x, y), line, font=font)
         if box[0] < 0 or box[2] > PAGE or box[3] > PAGE:
             raise ValueError(f"Text leaves the page: {line}")
-        draw.text(pos, line, font=font, fill=fill, anchor=anchor)
+        draw.text((x, y), line, font=font, fill=fill)
         bottom = box[3]
         y += leading
     return bottom
 
 
-def draw_map_texture(draw):
-    """Subtle dotted world map across the masthead band."""
-    mask = Image.new("L", (240, 120), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    for poly in CONTINENTS:
-        mask_draw.polygon(poly, fill=255)
-    for x, y, r in ISLANDS:
-        mask_draw.ellipse((x - r, y - r, x + r, y + r), fill=255)
-    px = mask.load()
-    mx0, my0, mx1, my1 = 28, 6, PAGE - 28, MASTHEAD_H - 6
-    step = 3
-    dot_r = 1.7
-    for gy in range(0, 120, step):
-        for gx in range(0, 240, step):
-            if px[gx, gy]:
-                x = mx0 + (gx / 240) * (mx1 - mx0)
-                y = my0 + (gy / 120) * (my1 - my0)
-                draw.ellipse((x - dot_r, y - dot_r, x + dot_r, y + dot_r),
-                             fill=MAP_DOT)
+def draw_centered(draw, text, font, y, fill=INK, max_width=None):
+    """Draw one line centred on the page; fail if it wraps."""
+    if max_width is None:
+        max_width = CONTENT
+    lines = split_lines(draw, text, font, max_width)
+    if len(lines) != 1:
+        raise ValueError(f"Centred line wraps: {text}")
+    x = MARGIN + (max_width - text_width(draw, text, font)) // 2
+    draw.text((x, y), text, font=font, fill=fill)
+    return draw.textbbox((x, y), text, font=font)[3]
 
 
-def draw_masthead(draw, fonts):
-    draw.rectangle((0, 0, PAGE - 1, MASTHEAD_H - 1), fill=INK)
-    draw_map_texture(draw)
-    paint_text(draw, MASTHEAD, fonts["masthead"], MARGIN, 2, CONTENT, 58,
-               fill=PAPER, center=True)
-    paint_text(draw, DATE_LINE, fonts["dateline"], MARGIN, 60, CONTENT, 24,
-               fill=PAPER, center=True)
-    count_line = f"{story_count()} STORIES  ·  {len(REGIONS)} REGIONS"
-    paint_text(draw, count_line, fonts["count"], MARGIN, 84, CONTENT, 18,
-               fill=GOLD, center=True)
-    draw.line((0, MASTHEAD_H, PAGE - 1, MASTHEAD_H), fill=ACCENT, width=3)
+def illustration(name, w, h):
+    """Return the illustration for a lead/grid story at w x h."""
+    if name == "hero":
+        return art.framed_art("hero.png", w, h)
+    if name == "markets":
+        return art.framed_art("markets.png", w, h)
+    builders = {
+        "kyiv": art.kyiv_night,
+        "cop31": art.cop31_globe,
+        "kryvyi": art.kryvyi_rih,
+        "cyclone": art.cyclone,
+        "scales": art.scales,
+        "interception": art.interception,
+        "candle": art.candle,
+        "chip": art.chip,
+        "cricket": art.cricket,
+        "voyager": art.voyager,
+        "flags": art.flags,
+    }
+    return builders[name](w, h)
 
 
-def draw_lead(image, draw, fonts):
-    """Lead block: text left, hero illustration right, stats strip below.
+def also_stories():
+    """The 37 ALSO headlines, numbered 14-50, in region order.
 
-    Returns the y just below the stats strip (the grid starts below it).
+    Everything from news.py that is not a lead or a grid story, plus
+    the four footer ALSO items (upper-cased for the list).
     """
-    y = MASTHEAD_H + 12
-    # Hero illustration (right) with a thin frame and one-line caption.
-    hero = Image.open(ART / "hero.png").convert("RGB")
-    hero = ImageOps.fit(hero, (HERO_W, HERO_H), Image.LANCZOS)
-    image.paste(hero, (HERO_X, y))
-    draw.rectangle((HERO_X, y, HERO_X + HERO_W - 1, y + HERO_H - 1),
-                   outline=INK, width=2)
-    caption = "JETS SCRAMBLE OVER POLAND — ILLUSTRATION"
-    caption_bottom = paint_text(draw, caption, fonts["caption"], HERO_X,
-                                y + HERO_H + 4, HERO_W, 14, fill=CAPTION)
-    # Kicker chip.
-    chip_w = draw.textbbox((0, 0), KICKER, font=fonts["kicker"])[2] + 24
-    draw.rectangle((MARGIN, y, MARGIN + chip_w, y + 22), fill=ACCENT)
-    draw.text((MARGIN + 12, y + 2), KICKER, font=fonts["kicker"], fill=PAPER)
-    text_y = y + 28
-    bottom = paint_text(draw, LEAD_TITLE, fonts["lead"], MARGIN, text_y,
-                        LEAD_TEXT_W, 42, fill=INK)
-    bottom = paint_text(draw, LEAD_DECK, fonts["lead_deck"], MARGIN,
-                        bottom + 6, LEAD_TEXT_W, 22, fill=INK)
-    # Key-numbers strip between thin rules, below both text and caption.
-    strip_y = max(bottom, caption_bottom) + 10
-    draw.line((MARGIN, strip_y, RIGHT, strip_y), fill=RULE, width=1)
-    paint_text(draw, STATS_LINE, fonts["stats"], MARGIN, strip_y + 4,
-               CONTENT, 20, fill=ACCENT, center=True)
-    draw.line((MARGIN, strip_y + 26, RIGHT, strip_y + 26), fill=RULE,
-              width=1)
-    return strip_y + 26
+    used = {headline for _, _, headline, _, _ in LEADS}
+    used |= {headline for _, _, headline, _, _ in GRID}
+    items = []
+    for _, _, stories in REGIONS:
+        for headline in stories:
+            if headline not in used:
+                items.append(headline)
+    items.extend(item.upper() for item in ALSO_ITEMS)
+    if len(items) != 37:
+        raise ValueError(f"Expected 37 ALSO stories, got {len(items)}")
+    return [(14 + i, headline) for i, headline in enumerate(items)]
 
 
-# "WHY BITCOIN CRASHED" explainer box, drawn inside the MARKETS section
-# right after its stories. Fixed advance heights (not paint_text glyph
-# bottoms) so measure and draw agree exactly.
-BTC_BOX_PAD_X = 8
-BTC_BOX_PAD_TOP = 6
-BTC_BOX_PAD_BOTTOM = 6
-BTC_BOX_TITLE_H = 17
-BTC_BOX_SUB_H = 14
-BTC_BOX_BULLET_LEADING = 13
-BTC_BOX_FILL = "#fff8ec"
-BTC_BOX_BORDER = "#7a1f1f"
+def verify_story_set():
+    """The laid-out stories must be exactly news.py's 50 stories."""
+    expected = {LEAD_TITLE}
+    expected |= {s for _, _, stories in REGIONS for s in stories}
+    expected |= set(ALSO_ITEMS)
+    actual = {headline for _, _, headline, _, _ in LEADS}
+    actual |= {headline for _, _, headline, _, _ in GRID}
+    actual |= {headline for _, headline in also_stories()}
+    # ALSO items are upper-cased for display; compare case-insensitively.
+    norm = {s.upper() for s in expected}
+    actual_norm = {s.upper() for s in actual}
+    if norm != actual_norm:
+        raise ValueError(
+            f"Story mismatch — missing: {sorted(norm - actual_norm)}, "
+            f"extra: {sorted(actual_norm - norm)}")
+    if story_count() != 50:
+        raise ValueError(f"news.py story_count is {story_count()}, not 50")
+    if sum(REGION_COUNTS.values()) != 50:
+        raise ValueError("Region strip counts do not sum to 50")
 
 
-def btc_box_lines(draw, fonts):
-    """Wrapped bullet lines for the BTC box; title/sub must be 1 line."""
-    inner = COL_W - 2 * BTC_BOX_PAD_X
-    if len(split_lines(draw, BTC_BOX_TITLE, fonts["box_title"], inner)) != 1:
-        raise ValueError("BTC box title wraps")
-    if len(split_lines(draw, BTC_BOX_SUB, fonts["box_sub"], inner)) != 1:
-        raise ValueError("BTC box sub wraps")
-    return [split_lines(draw, "• " + point, fonts["box_bullet"], inner)
-            for point in BTC_BOX_POINTS]
+def draw_header(draw, fonts):
+    """Kicker line, huge serif date, sub-headline strip."""
+    draw.text((MARGIN, KICKER_Y), "THE WORLD IN ONE DAY",
+              font=fonts["kicker"], fill=ACCENT)
+    right = "50 STORIES  ·  8 REGIONS  ·  SATURDAY 21 NOVEMBER 2026"
+    rw = text_width(draw, right, fonts["kicker_right"])
+    draw.text((RIGHT - rw, KICKER_Y + 1), right,
+              font=fonts["kicker_right"], fill=INK)
+    draw.line((MARGIN, RULE1_Y, RIGHT, RULE1_Y), fill=INK, width=2)
+    draw_centered(draw, DATE_LINE.title(), fonts["date"], DATE_Y)
+    draw_centered(draw, SUB_HEAD, fonts["sub"], SUB_Y)
+    draw.line((MARGIN, RULE2_Y, RIGHT, RULE2_Y), fill=INK, width=2)
 
 
-def btc_box_height(draw, fonts):
-    bullets = btc_box_lines(draw, fonts)
-    bullet_h = sum(len(lines) * BTC_BOX_BULLET_LEADING for lines in bullets)
-    return (BTC_BOX_PAD_TOP + BTC_BOX_TITLE_H + 2 + BTC_BOX_SUB_H + 4
-            + bullet_h + BTC_BOX_PAD_BOTTOM)
+def draw_stats(draw, fonts):
+    """Six big numbers with captions, red left bars."""
+    cell_w = CONTENT // 6
+    for i, (number, caption) in enumerate(STATS):
+        x = MARGIN + i * cell_w
+        draw.rectangle((x, STATS_Y + 2, x + 3, STATS_Y + STATS_H - 4),
+                       fill=ACCENT)
+        tx = x + 9
+        draw.text((tx, STATS_Y), number, font=fonts["stats_num"],
+                  fill=INK)
+        lines = split_lines(draw, caption, fonts["stats_cap"],
+                            cell_w - 14)
+        if len(lines) > 2:
+            raise ValueError(f"Stats caption wraps to 3 lines: {caption}")
+        draw_lines(draw, lines, fonts["stats_cap"], tx, STATS_Y + 30, 12,
+                   fill=INK)
 
 
-def draw_btc_box(draw, fonts, x, y):
-    """Draw the BTC explainer box; return the y just below it."""
-    bullets = btc_box_lines(draw, fonts)
-    height = btc_box_height(draw, fonts)
-    draw.rectangle((x, y, x + COL_W - 1, y + height - 1),
-                   fill=BTC_BOX_FILL, outline=BTC_BOX_BORDER, width=2)
-    tx = x + BTC_BOX_PAD_X
-    ty = y + BTC_BOX_PAD_TOP
-    draw.text((tx, ty), BTC_BOX_TITLE, font=fonts["box_title"],
-              fill=BTC_BOX_BORDER)
-    ty += BTC_BOX_TITLE_H + 2
-    draw.text((tx, ty), BTC_BOX_SUB, font=fonts["box_sub"], fill="#8a6d1a")
-    ty += BTC_BOX_SUB_H + 4
-    for lines in bullets:
-        for line in lines:
-            draw.text((tx, ty), line, font=fonts["box_bullet"], fill=INK)
-            ty += BTC_BOX_BULLET_LEADING
-    return y + height
+def draw_region_strip(draw, fonts):
+    """Coloured segments, one per region, with story counts.
+
+    Widths start from the label width, then the leftover is shared
+    out in proportion to the counts, so small regions stay legible
+    while big ones stay visibly bigger.
+    """
+    colours = {name: colour for name, colour, _ in REGIONS}
+    labels = {name: f"{name} {count}"
+              for name, count in REGION_COUNTS.items()}
+    widths = {}
+    for name, label in labels.items():
+        widths[name] = text_width(draw, label, fonts["region"]) + 14
+    leftover = CONTENT - sum(widths.values())
+    if leftover < 0:
+        raise ValueError("Region strip labels do not fit")
+    total = sum(REGION_COUNTS.values())
+    for name, count in REGION_COUNTS.items():
+        widths[name] += round(leftover * count / total)
+    # Fix rounding drift on the largest segment.
+    drift = CONTENT - sum(widths.values())
+    widths["EUROPE"] += drift
+    x = MARGIN
+    for name in REGION_COUNTS:
+        w = widths[name]
+        draw.rectangle((x, REGION_Y, x + w - 1, REGION_Y + REGION_H - 1),
+                       fill=colours[name])
+        label = labels[name]
+        lx = x + (w - text_width(draw, label, fonts["region"])) // 2
+        draw.text((lx, REGION_Y + 4), label, font=fonts["region"],
+                  fill="#ffffff")
+        x += w
 
 
-def measure_grid(draw, fonts):
-    """Return per-column heights; raise if any column overflows."""
-    region_map = {name: (colour, stories) for name, colour, stories in REGIONS}
-    heights = []
-    for column in COLUMNS:
-        total = 0
-        for name in column:
-            _, stories = region_map[name]
-            total += 22  # tinted section header + rule
-            for story in stories:
-                lines = split_lines(draw, story, fonts["story"], COL_W - 14)
-                total += len(lines) * 14 + 3
-            if name == "MARKETS":
-                total += btc_box_height(draw, fonts)
-            total += 4  # gap after a section
-        heights.append(total)
-    return heights
-
-
-def draw_spot(image, draw, fonts, column_index, x, y, available):
-    """Draw a column's spot illustration if it fits; return bottom y."""
-    spot = SPOTS[column_index]
-    if spot is None:
-        return y
-    art_file, caption = spot
-    block = SPOT_H + 4 + 14
-    if available < block + 6:
-        print(f"column {column_index}: spot skipped, "
-              f"only {available}px free")
-        return y
-    art = Image.open(ART / art_file).convert("RGB")
-    art = ImageOps.fit(art, (COL_W, SPOT_H), Image.LANCZOS)
-    image.paste(art, (x, y))
-    draw.rectangle((x, y, x + COL_W - 1, y + SPOT_H - 1), outline=INK,
-                   width=1)
-    bottom = paint_text(draw, caption, fonts["caption"], x, y + SPOT_H + 4,
-                        COL_W, 14, fill=CAPTION)
+def draw_leads(image, draw, fonts):
+    """Three big illustrated leads in a row; return bottom y."""
+    bottom = LEADS_Y
+    for i, (number, tag, headline, deck, art_name) in enumerate(LEADS):
+        x = MARGIN + i * (LEAD_W + LEAD_COL_GAP)
+        y = LEADS_Y
+        picture = illustration(art_name, LEAD_W, LEAD_IMG_H)
+        image.paste(picture, (x, y))
+        draw.rectangle((x, y, x + LEAD_W - 1, y + LEAD_IMG_H - 1),
+                       outline=INK, width=1)
+        y += LEAD_IMG_H + 4
+        # Red number chip + tag.
+        chip = f"{number}"
+        chip_w = text_width(draw, chip, fonts["lead_tag"]) + 12
+        draw.rectangle((x, y, x + chip_w, y + 15), fill=ACCENT)
+        draw.text((x + 6, y + 1), chip, font=fonts["lead_tag"],
+                  fill="#ffffff")
+        draw.text((x + chip_w + 6, y + 1), tag, font=fonts["lead_tag"],
+                  fill=ACCENT)
+        y += 19
+        lines = split_lines(draw, headline, fonts["lead_head"], LEAD_W)
+        if len(lines) > 2:
+            raise ValueError(f"Lead headline wraps to 3 lines: {headline}")
+        y = draw_lines(draw, lines, fonts["lead_head"], x, y, 20) + 2
+        deck_lines = split_lines(draw, deck, fonts["lead_deck"], LEAD_W)
+        if len(deck_lines) > 2:
+            raise ValueError(f"Lead deck wraps to 3 lines: {deck}")
+        y = draw_lines(draw, deck_lines, fonts["lead_deck"], x, y, 13)
+        bottom = max(bottom, y)
     return bottom
 
 
 def draw_grid(image, draw, fonts, grid_top):
-    region_map = {name: (colour, stories) for name, colour, stories in REGIONS}
-    for i, column in enumerate(COLUMNS):
-        x = MARGIN + i * (COL_W + COL_GAP)
-        y = grid_top
-        for name in column:
-            colour, stories = region_map[name]
-            tint = blend(colour, PAPER, 0.14)
-            draw.rectangle((x, y - 2, x + COL_W, y + 19), fill=tint)
-            draw.text((x + 4, y), name, font=fonts["region"], fill=colour)
-            draw.line((x, y + 21, x + COL_W, y + 21), fill=colour, width=2)
-            y += 22
-            for story in stories:
-                draw.rectangle((x, y + 5, x + 7, y + 12), fill=colour)
-                bottom = paint_text(draw, story, fonts["story"], x + 14, y,
-                                    COL_W - 14, 14, fill=INK)
-                y = bottom + 3
-            if name == "MARKETS":
-                y = draw_btc_box(draw, fonts, x, y)
-            y += 4
-        # Spot illustration in the dead space below the last section.
-        draw_spot(image, draw, fonts, i, x, y + 4,
-                  FOOTER_TOP - 8 - (y + 4))
-        # Column divider (skip after the last column).
-        if i < len(COLUMNS) - 1:
-            dx = x + COL_W + COL_GAP // 2
-            draw.line((dx, grid_top, dx, FOOTER_TOP - 8), fill=RULE, width=1)
+    """Ten small illustrated stories, two rows of five; return bottom y."""
+    row_h = None
+    y = grid_top
+    for row in range(2):
+        row_bottom = y
+        for col in range(5):
+            number, tag, headline, deck, art_name = GRID[row * 5 + col]
+            x = MARGIN + col * (GRID_W + GRID_GAP_X)
+            cy = y
+            picture = illustration(art_name, GRID_W, GRID_IMG_H)
+            image.paste(picture, (x, cy))
+            draw.rectangle((x, cy, x + GRID_W - 1, cy + GRID_IMG_H - 1),
+                           outline=INK, width=1)
+            cy += GRID_IMG_H + 3
+            chip = f"{number}"
+            chip_w = text_width(draw, chip, fonts["grid_tag"]) + 10
+            draw.rectangle((x, cy, x + chip_w, cy + 13), fill=ACCENT)
+            draw.text((x + 5, cy + 1), chip, font=fonts["grid_tag"],
+                      fill="#ffffff")
+            draw.text((x + chip_w + 5, cy + 1), tag,
+                      font=fonts["grid_tag"], fill=ACCENT)
+            cy += 16
+            lines = split_lines(draw, headline, fonts["grid_head"], GRID_W)
+            if len(lines) > 2:
+                raise ValueError(
+                    f"Grid headline wraps to 3 lines: {headline}")
+            cy = draw_lines(draw, lines, fonts["grid_head"], x, cy, 12) + 1
+            deck_lines = split_lines(draw, deck, fonts["grid_deck"],
+                                     GRID_W)
+            if len(deck_lines) > 2:
+                raise ValueError(f"Grid deck wraps to 3 lines: {deck}")
+            cy = draw_lines(draw, deck_lines, fonts["grid_deck"], x, cy, 12)
+            row_bottom = max(row_bottom, cy)
+        row_h = row_bottom - y
+        y = row_bottom + GRID_GAP_Y
+    return y - GRID_GAP_Y
 
 
-def draw_footer(draw, fonts):
-    # Each footer line must fit on exactly one line; a wrapped second
-    # line would overlap the line below it, so fail loudly instead.
-    for line, font in ((MARKETS_LINE, fonts["footer"]),
-                       (ALSO_LINE, fonts["footer"]),
-                       (TRENDING_LINE, fonts["trending"])):
-        if len(split_lines(draw, line, font, CONTENT)) != 1:
-            raise ValueError(f"Footer line wraps: {line}")
-    draw.rectangle((0, FOOTER_TOP, PAGE - 1, PAGE - 1), fill=INK)
-    draw.line((0, FOOTER_TOP, PAGE - 1, FOOTER_TOP), fill=ACCENT, width=3)
-    paint_text(draw, MARKETS_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 5,
-               CONTENT, 20, fill=PAPER, center=True)
-    paint_text(draw, ALSO_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 25,
-               CONTENT, 20, fill=GOLD, center=True)
-    paint_text(draw, TRENDING_LINE, fonts["trending"], MARGIN,
-               FOOTER_TOP + 46, CONTENT, 16, fill=PAPER, center=True)
+def draw_btc_strip(draw, fonts, top):
+    """Full-width WHY BITCOIN CRASHED explainer box; return bottom y."""
+    draw.rectangle((MARGIN, top, RIGHT - 1, top + BTC_H - 1),
+                   fill=BTC_FILL, outline=BTC_BORDER, width=2)
+    tx = MARGIN + 10
+    ty = top + 7
+    draw.text((tx, ty), BTC_BOX_TITLE, font=fonts["btc_title"],
+              fill=BTC_BORDER)
+    draw.text((tx, ty + 17), BTC_BOX_SUB, font=fonts["btc_sub"],
+              fill="#8a6d1a")
+    # Five bullets in two columns (3 + 2), one line each.
+    title_w = 218
+    bullet_x = MARGIN + title_w
+    bullet_w = (RIGHT - bullet_x - 10) // 2
+    columns = (BTC_BOX_POINTS[:3], BTC_BOX_POINTS[3:])
+    for ci, points in enumerate(columns):
+        bx = bullet_x + ci * (bullet_w + 6)
+        by = top + 7
+        for point in points:
+            line = "• " + point
+            if text_width(draw, line, fonts["btc_bullet"]) > bullet_w:
+                raise ValueError(f"BTC bullet too wide: {line}")
+            draw.text((bx, by), line, font=fonts["btc_bullet"], fill=INK)
+            by += 13
+    return top + BTC_H
+
+
+def draw_also(draw, fonts, top):
+    """Numbered ALSO list in three columns; return bottom y."""
+    # Three headlines are too long for one 10px line in a 314px column,
+    # so they get a truthful shortened display form (same story).
+    display = {
+        "TEHRAN IN THE CROSSHAIRS AS US, ISRAEL WEIGH STRIKE":
+            "US, ISRAEL WEIGH STRIKE ON TEHRAN",
+        "MOROCCO BETS €366M ON HOME-GROWN ARMS INDUSTRY":
+            "MOROCCO BETS €366M ON HOME-GROWN ARMS",
+        "UAE BULLS STORM TO BACK-TO-BACK ABU DHABI T10 TITLE":
+            "UAE BULLS RETAIN ABU DHABI T10 TITLE",
+    }
+    draw.rectangle((MARGIN, top, RIGHT - 1, top + ALSO_HEAD_H - 1),
+                   fill=NAVY)
+    head = "ALSO ON SATURDAY 21 NOVEMBER — 37 MORE STORIES"
+    draw.text((MARGIN + 8, top + 3), head, font=fonts["also_head"],
+              fill="#ffffff")
+    items = also_stories()
+    columns = (items[:13], items[13:25], items[25:])
+    y = top + ALSO_HEAD_H + 4
+    for ci, column in enumerate(columns):
+        x = MARGIN + ci * (ALSO_W + ALSO_COL_GAP)
+        cy = y
+        for number, headline in column:
+            line = f"{number}  {display.get(headline, headline)}"
+            if text_width(draw, line, fonts["also_item"]) > ALSO_W:
+                raise ValueError(f"ALSO line too wide: {line}")
+            draw.text((x, cy), line, font=fonts["also_item"], fill=INK)
+            cy += 12
+    return y + 13 * 12
+
+
+def draw_bottom(image, draw, fonts, top):
+    """Dotted world map with pins (left) + DATE CHECK box (right)."""
+    map_x0 = MARGIN
+    map_x1 = MARGIN + 562
+    dc_x0 = map_x1 + 12
+    dc_x1 = RIGHT
+    # Map header + note.
+    draw.text((map_x0, top), "WHERE IT HAPPENED", font=fonts["map_head"],
+              fill=INK)
+    draw.line((map_x0, top + 15, map_x1, top + 15), fill=INK, width=2)
+    map_y0 = top + 19
+    map_y1 = top + BOTTOM_H - 14
+    # Nudged pins are drawn only by the leader-line loop below, so
+    # they are excluded here to avoid a duplicate badge.
+    plain_pins = [(n, lon, lat) for n, lon, lat, dx, dy in PINS
+                  if dx == 0 and dy == 0]
+    art.draw_dotted_map(draw, map_x0, map_y0, map_x1, map_y1,
+                        plain_pins, dot_fill="#7a1f1f")
+    # Nudged pins get a leader line from the true spot to the badge.
+    pin_font = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 8)
+    for number, lon, lat, dx, dy in PINS:
+        if dx == 0 and dy == 0:
+            continue
+        mx, my = art.lonlat_to_mask(lon, lat)
+        tx = map_x0 + (mx / 240) * (map_x1 - map_x0)
+        ty = map_y0 + (my / 120) * (map_y1 - map_y0)
+        bx, by = tx + dx, ty + dy
+        draw.line((tx, ty, bx, by), fill="#b32b23", width=1)
+        r = 7 if number >= 10 else 6
+        draw.ellipse((bx - r - 1, by - r - 1, bx + r + 1, by + r + 1),
+                     fill="#ffffff")
+        draw.ellipse((bx - r, by - r, bx + r, by + r), fill="#b32b23")
+        label = str(number)
+        box = draw.textbbox((0, 0), label, font=pin_font)
+        tw, th = box[2] - box[0], box[3] - box[1]
+        draw.text((bx - tw / 2 - box[0], by - th / 2 - box[1]), label,
+                  font=pin_font, fill="#ffffff")
+    draw.text((map_x0, top + BOTTOM_H - 12),
+              "Pins 1–13 mark the illustrated stories. 12 is in space: "
+              "Voyager 1. Map: simplified world outline.",
+              font=fonts["map_note"], fill=CAPTION)
+    # DATE CHECK box.
+    draw.rectangle((dc_x0, top, dc_x1 - 1, top + BOTTOM_H - 1),
+                   fill="#fdf6e3", outline=ACCENT, width=2)
+    tx = dc_x0 + 10
+    ty = top + 7
+    draw.text((tx, ty), "DATE CHECK — WHAT WE LEFT OUT",
+              font=fonts["dc_title"], fill=ACCENT)
+    ty += 19
+    inner = dc_x1 - dc_x0 - 20
+    for item in DATE_CHECK:
+        lines = split_lines(draw, "✕ " + item, fonts["dc_item"], inner)
+        ty = draw_lines(draw, lines, fonts["dc_item"], tx, ty, 13,
+                        fill=INK) + 1
+    return top + BOTTOM_H
+
+
+def draw_footer(draw, fonts, top):
+    """Markets ticker, trending strip, sources note; return bottom y."""
+    draw.line((MARGIN, top, RIGHT, top), fill=RULE, width=1)
+    y = top + 4
+    y = draw_centered(draw, MARKETS_LINE, fonts["footer"], y) + 1
+    y = draw_centered(draw, TRENDING_LINE, fonts["footer_bold"], y) + 1
+    y = draw_centered(draw, FOOTER_SOURCES, fonts["footer_small"], y)
+    return y
 
 
 def main():
+    verify_story_set()
     image = Image.new("RGB", (PAGE, PAGE), PAPER)
     draw = ImageDraw.Draw(image)
     fonts = load_fonts()
 
-    draw_masthead(draw, fonts)
-    lead_bottom = draw_lead(image, draw, fonts)
-    grid_top = lead_bottom + 12
-    heights = measure_grid(draw, fonts)
-    available = FOOTER_TOP - grid_top
-    print(f"lead bottom: {lead_bottom}, grid top: {grid_top}")
-    print(f"grid columns: {heights} (available {available})")
-    if max(heights) > available:
-        raise ValueError(
-            f"Grid overflows by {max(heights) - available}px: {heights}")
+    draw_header(draw, fonts)
+    draw_stats(draw, fonts)
+    draw_region_strip(draw, fonts)
+    leads_bottom = draw_leads(image, draw, fonts)
+    grid_top = leads_bottom + 6
+    grid_bottom = draw_grid(image, draw, fonts, grid_top)
+    btc_bottom = draw_btc_strip(draw, fonts, grid_bottom + 6)
+    also_bottom = draw_also(draw, fonts, btc_bottom + 6)
+    bottom = draw_bottom(image, draw, fonts, also_bottom + 6)
+    footer_bottom = draw_footer(draw, fonts, bottom + 4)
 
-    draw_grid(image, draw, fonts, grid_top)
-    draw_footer(draw, fonts)
+    print(f"leads bottom: {leads_bottom}, grid top: {grid_top}, "
+          f"grid bottom: {grid_bottom}")
+    print(f"btc bottom: {btc_bottom}, also bottom: {also_bottom}, "
+          f"bottom band: {bottom}, footer bottom: {footer_bottom}")
+    if footer_bottom > 1020:
+        raise ValueError(
+            f"Page overflows by {footer_bottom - 1020}px")
 
     out = Path(__file__).with_name("entry.png")
     image.save(out, optimize=True)

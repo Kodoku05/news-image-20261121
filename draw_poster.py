@@ -1,14 +1,15 @@
-"""Render the front page to entry.png with Pillow (v3 — illustrated edition).
+"""Render the front page to entry.png with Pillow (v4 — headline + SEO round).
 
 Layout: navy masthead band with a subtle dotted world-map texture and the
 story count, then a lead block with the headline + deck on the left and a
 hero illustration on the right, a key-numbers strip, then a three-column
 briefs grid grouped by region (tinted section headers, one headline per
 story) with spot illustrations filling the dead space at the bottom of
-the shorter columns, and a navy footer with the markets ticker plus an
-"also" line. The renderer measures everything before drawing and fails
-loudly if anything overflows the page. Content (all 40 stories) is
-unchanged from v2 — only the presentation is richer.
+the shorter columns, and a navy footer with the markets ticker, an "also"
+line and a "trending now" strip. The renderer measures everything before
+drawing and fails loudly if anything overflows the page. Content (all 40
+stories) is unchanged from v2/v3 — only the headlines are punchier and
+today's trending search terms are woven in.
 """
 
 from pathlib import Path
@@ -26,6 +27,7 @@ from news import (
     MASTHEAD,
     REGIONS,
     STATS_LINE,
+    TRENDING_LINE,
     story_count,
 )
 
@@ -118,6 +120,7 @@ def load_fonts():
         "story": ImageFont.truetype(serif, 14),
         "caption": ImageFont.truetype(sans_bold, 11),
         "footer": ImageFont.truetype(sans, 15),
+        "trending": ImageFont.truetype(sans_bold, 13),
     }
 
 
@@ -291,15 +294,19 @@ def draw_grid(image, draw, fonts, grid_top):
 def draw_footer(draw, fonts):
     # Each footer line must fit on exactly one line; a wrapped second
     # line would overlap the line below it, so fail loudly instead.
-    for line in (MARKETS_LINE, ALSO_LINE):
-        if len(split_lines(draw, line, fonts["footer"], CONTENT)) != 1:
+    for line, font in ((MARKETS_LINE, fonts["footer"]),
+                       (ALSO_LINE, fonts["footer"]),
+                       (TRENDING_LINE, fonts["trending"])):
+        if len(split_lines(draw, line, font, CONTENT)) != 1:
             raise ValueError(f"Footer line wraps: {line}")
     draw.rectangle((0, FOOTER_TOP, PAGE - 1, PAGE - 1), fill=INK)
     draw.line((0, FOOTER_TOP, PAGE - 1, FOOTER_TOP), fill=ACCENT, width=3)
-    paint_text(draw, MARKETS_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 8,
-               CONTENT, 21, fill=PAPER, center=True)
-    paint_text(draw, ALSO_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 33,
-               CONTENT, 21, fill=GOLD, center=True)
+    paint_text(draw, MARKETS_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 5,
+               CONTENT, 20, fill=PAPER, center=True)
+    paint_text(draw, ALSO_LINE, fonts["footer"], MARGIN, FOOTER_TOP + 25,
+               CONTENT, 20, fill=GOLD, center=True)
+    paint_text(draw, TRENDING_LINE, fonts["trending"], MARGIN,
+               FOOTER_TOP + 46, CONTENT, 16, fill=PAPER, center=True)
 
 
 def main():

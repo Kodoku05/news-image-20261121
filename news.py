@@ -1,10 +1,37 @@
-"""The news of Saturday 21 November 2026, as data (v4 — headline + SEO round).
+"""The news of Saturday 21 November 2026, as data (v4 — headline + SEO
+round, expanded to 50 stories + a "WHY BITCOIN CRASHED" explainer box).
 
 Same 40 verified stories as v2/v3 — only the wording changed: headlines
 are punchier, tabloid-style hooks (big numbers up front, strong verbs,
 curiosity gaps) and today's genuinely trending search terms are woven in
 where they fit the story. Every headline stays factually true to its
 verified story: sensational wording, never fabricated facts.
+
+10 NEW one-line briefs (all verified, dated 20-21 Nov 2026, researched
+21 Nov ~10:15 WIB): COP31 deadlocked in overtime (Reuters/AP 20 Nov —
+talks slipped past deadline in Antalya, draft stripped of fossil fuels,
+third draft due Sat morning; no final deal yet, so "deadlocked" is the
+honest word); UK-EU summit seals post-Brexit reset (Reuters 20 Nov,
+Brussels: food-trade deal, carbon-market linkage, youth mobility
+100,000/yr); Hunger Games prequel "Sunrise on the Reaping" opens in
+cinemas Fri 20 Nov (People/JustJared); IShowSpeed beats GTA 6 after a
+52.5-hour live marathon then accidentally deletes his 98% save (Daily
+Checkpoint 20 Nov); Dodgers acquire Royce Lewis from the Twins (Reuters
+20 Nov); Palisades Fire arsonist Jonathan Rinderknecht convicted Fri
+20 Nov (Reuters/DOJ; fire killed 12, destroyed 6,837 structures);
+M4.2 earthquake near Commerce, LA, Fri 03:25 PT (USGS); Fiona the hippo
+dies aged 9 after swallowing a visitor's knit hat (CNN/Cincinnati.com,
+necropsy details released 20 Nov); daraxonrasib combo data: 60.7%
+response rate in first-line metastatic pancreatic cancer, presented at
+ENA 2026 Barcelona Fri 20 Nov (OncoDaily/OncLive); Anthropic's Levent
+Alpöge CLAIMS (with Claude) to have proved the Riemann hypothesis,
+Lean formalization independently compiled (Scientific American/WSJ
+20 Nov) — a claim, not a settled proof, so the headline says "claims".
+
+The BTC box lists the five verified drivers of the crash (researched by
+the parent 21 Nov morning): Fed hike fears, the AI/tech selloff, $1.5B
+of leverage liquidations, $1.9B of spot-ETF outflows, and the $6.3M
+Binance hack. No other causes are claimed.
 
 Trending terms verified 21 Nov 2026 ~10:05 WIB via Virlo (TikTok/IG,
 updated 00:04 UTC), Google Trends round-ups (GlyphSignal, WhatMostSearched,
@@ -28,9 +55,9 @@ DATE_LINE = "SATURDAY, 21 NOVEMBER 2026"
 KICKER = "BREAKING: WAR SPILLS OVER"
 LEAD_TITLE = "RUSSIA STRIKES POLAND: NATO ON EDGE"
 LEAD_DECK = (
-    "Two Russian missiles and a jet-powered drone crash into Poland during "
-    "Moscow's barrage on Ukraine; Tusk calls it an 'intentional "
-    "provocation' as NATO chief Rutte flies to Warsaw."
+    "Two Russian missiles and a drone crash into Poland during "
+    "Moscow's barrage on Ukraine; Tusk calls it 'intentional' "
+    "as NATO's Rutte flies to Warsaw."
 )
 STATS_LINE = (
     "3 WEAPONS LANDED  ·  11 OBJECTS TRACKED  ·  0 SHOTS FIRED  ·  "
@@ -47,6 +74,8 @@ REGIONS = (
         "EU UNLEASHES €1BN WAR CHEST FOR UKRAINE",
         "THACI JAILED: EX-PRESIDENT GETS 17 MONTHS",
         "465 SHADOW ATTACKS HIT EUROPE IN JUST 90 DAYS",
+        "COP31 DEADLOCKED IN OVERTIME",
+        "BURNHAM SEALS EU RESET DEAL",
     )),
     ("ASIA-PACIFIC", "#1f4d7a", (
         "TRUMP, XI, PUTIN IN FIRST-EVER 3-WAY SUMMIT",
@@ -71,6 +100,9 @@ REGIONS = (
         "TRUMP SACKS CYBER CHIEF AMID US OUTAGE CHAOS",
         "PACIFIC SEABED THROWN OPEN TO DEEP-SEA MINING",
         "US SNUBS CANADA — MILITARY TIES CURBED",
+        "PALISADES ARSONIST CONVICTED",
+        "4.2 QUAKE WAKES LOS ANGELES",
+        "HIPPO FIONA DIES EATING A HAT",
     )),
     ("AFRICA", "#7a4a1f", (
         "EBOLA STALKS CONGO'S CHILDREN AS 100 SCHOOLS HIT",
@@ -87,15 +119,38 @@ REGIONS = (
         "UAE BULLS STORM TO BACK-TO-BACK ABU DHABI T10 TITLE",
         "MEDVEDEV DOWNS TIAFOE AT THE ATP FINALS",
         "VOYAGER 1 MAKES HISTORY: ONE LIGHT-DAY FROM EARTH",
+        "HUNGER GAMES PREQUEL OPENS",
+        "SPEED BEATS GTA 6, LOSES SAVE",
+        "DODGERS LAND ROYCE LEWIS",
+    )),
+    ("SCIENCE & HEALTH", "#6b3a7a", (
+        "CANCER PILL: 60% RESPOND",
+        "AI CLAIMS RIEMANN PROOF",
     )),
 )
 
 # Which regions go in which of the three columns, top to bottom.
-# Balanced by measured height so no column overflows the grid.
+# Balanced by measured height so no column overflows the grid and both
+# spot illustrations still fit below columns 0 and 2. MARKETS sits in
+# the middle column so its "WHY BITCOIN CRASHED" explainer box gets the
+# tallest slot on the page; SCIENCE & HEALTH anchors column 2.
 COLUMNS = (
-    ("EUROPE", "MARKETS"),
-    ("ASIA-PACIFIC", "AFRICA", "SPORT & CULTURE"),
-    ("MIDDLE EAST", "AMERICAS"),
+    ("EUROPE", "SPORT & CULTURE"),
+    ("MARKETS", "ASIA-PACIFIC", "AFRICA"),
+    ("MIDDLE EAST", "AMERICAS", "SCIENCE & HEALTH"),
+)
+
+# Explainer box inside the MARKETS section: the five verified drivers
+# of the Bitcoin crash (researched by the parent, 21 Nov morning).
+# Kept to one line each at 11px so the box stays compact.
+BTC_BOX_TITLE = "WHY BITCOIN CRASHED"
+BTC_BOX_SUB = "FIVE FORCES BEHIND THE PLUNGE"
+BTC_BOX_POINTS = (
+    "FED HIKE FEARS: CPI +0.4%, 50BP HIKE TALK",
+    "ANTHROPIC IPO SINKS; NASDAQ \u22123.8%",
+    "$1.5B IN LEVERAGE LIQUIDATED IN 24 HOURS",
+    "$1.9B FLED SPOT BITCOIN ETFS IN A WEEK",
+    "BINANCE HACKED: $6.3M STOLEN IN OCTOBER",
 )
 
 # Short items for the footer's second line (also counted in the total).

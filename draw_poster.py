@@ -1,4 +1,5 @@
-"""Render the front page to entry.png with Pillow (v4 — headline + SEO round).
+"""Render the front page to entry.png with Pillow (v4 — headline + SEO round,
+expanded to 50 stories + a "WHY BITCOIN CRASHED" explainer box).
 
 Layout: navy masthead band with a subtle dotted world-map texture and the
 story count, then a lead block with the headline + deck on the left and a
@@ -6,10 +7,12 @@ hero illustration on the right, a key-numbers strip, then a three-column
 briefs grid grouped by region (tinted section headers, one headline per
 story) with spot illustrations filling the dead space at the bottom of
 the shorter columns, and a navy footer with the markets ticker, an "also"
-line and a "trending now" strip. The renderer measures everything before
-drawing and fails loudly if anything overflows the page. Content (all 40
-stories) is unchanged from v2/v3 — only the headlines are punchier and
-today's trending search terms are woven in.
+line and a "trending now" strip. The MARKETS section carries a bordered
+explainer box listing the five verified drivers of the Bitcoin crash.
+The renderer measures everything before drawing and fails loudly if
+anything overflows the page. Content: 50 verified stories (40 original
++ 10 one-line briefs), punchier tabloid headlines, today's trending
+search terms woven in.
 """
 
 from pathlib import Path
@@ -18,6 +21,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from news import (
     ALSO_LINE,
+    BTC_BOX_POINTS,
+    BTC_BOX_SUB,
+    BTC_BOX_TITLE,
     COLUMNS,
     DATE_LINE,
     KICKER,
@@ -50,12 +56,14 @@ MASTHEAD_H = 108
 LEAD_TEXT_W = 560
 HERO_X = MARGIN + LEAD_TEXT_W + 16  # 616
 HERO_W = RIGHT - HERO_X  # 368
-HERO_H = 200
+HERO_H = 168  # Shrunk from 200 so the 50-story grid fits; the lead text
+# side (kicker + title + 3-line deck) is now the binding height.
 
 COL_GAP = 18
 COL_W = (CONTENT - 2 * COL_GAP) // 3  # 302
 
-SPOT_H = 100  # Fits the ~125px of dead space below columns 0 and 2.
+SPOT_H = 76  # Shrunk from 100 so both spots still fit below the taller
+# 50-story columns (needs ~100px of dead space incl. caption + gap).
 # Spot illustration per column index (None = no spot): (art file, caption).
 SPOTS = (
     ("markets.png", "WALL STREET'S WORST WEEK SINCE 2020"),
@@ -117,7 +125,10 @@ def load_fonts():
         "lead_deck": ImageFont.truetype(sans, 19),
         "stats": ImageFont.truetype(sans_bold, 15),
         "region": ImageFont.truetype(sans_bold, 16),
-        "story": ImageFont.truetype(serif, 14),
+        "story": ImageFont.truetype(serif, 13),
+        "box_title": ImageFont.truetype(sans_bold, 14),
+        "box_sub": ImageFont.truetype(sans_bold, 11),
+        "box_bullet": ImageFont.truetype(sans, 11),
         "caption": ImageFont.truetype(sans_bold, 11),
         "footer": ImageFont.truetype(sans, 15),
         "trending": ImageFont.truetype(sans_bold, 13),
@@ -186,7 +197,7 @@ def draw_masthead(draw, fonts):
                fill=PAPER, center=True)
     paint_text(draw, DATE_LINE, fonts["dateline"], MARGIN, 60, CONTENT, 24,
                fill=PAPER, center=True)
-    count_line = f"{story_count()} STORIES  ·  7 REGIONS"
+    count_line = f"{story_count()} STORIES  ·  {len(REGIONS)} REGIONS"
     paint_text(draw, count_line, fonts["count"], MARGIN, 84, CONTENT, 18,
                fill=GOLD, center=True)
     draw.line((0, MASTHEAD_H, PAGE - 1, MASTHEAD_H), fill=ACCENT, width=3)
@@ -226,6 +237,57 @@ def draw_lead(image, draw, fonts):
     return strip_y + 26
 
 
+# "WHY BITCOIN CRASHED" explainer box, drawn inside the MARKETS section
+# right after its stories. Fixed advance heights (not paint_text glyph
+# bottoms) so measure and draw agree exactly.
+BTC_BOX_PAD_X = 8
+BTC_BOX_PAD_TOP = 6
+BTC_BOX_PAD_BOTTOM = 6
+BTC_BOX_TITLE_H = 17
+BTC_BOX_SUB_H = 14
+BTC_BOX_BULLET_LEADING = 13
+BTC_BOX_FILL = "#fff8ec"
+BTC_BOX_BORDER = "#7a1f1f"
+
+
+def btc_box_lines(draw, fonts):
+    """Wrapped bullet lines for the BTC box; title/sub must be 1 line."""
+    inner = COL_W - 2 * BTC_BOX_PAD_X
+    if len(split_lines(draw, BTC_BOX_TITLE, fonts["box_title"], inner)) != 1:
+        raise ValueError("BTC box title wraps")
+    if len(split_lines(draw, BTC_BOX_SUB, fonts["box_sub"], inner)) != 1:
+        raise ValueError("BTC box sub wraps")
+    return [split_lines(draw, "• " + point, fonts["box_bullet"], inner)
+            for point in BTC_BOX_POINTS]
+
+
+def btc_box_height(draw, fonts):
+    bullets = btc_box_lines(draw, fonts)
+    bullet_h = sum(len(lines) * BTC_BOX_BULLET_LEADING for lines in bullets)
+    return (BTC_BOX_PAD_TOP + BTC_BOX_TITLE_H + 2 + BTC_BOX_SUB_H + 4
+            + bullet_h + BTC_BOX_PAD_BOTTOM)
+
+
+def draw_btc_box(draw, fonts, x, y):
+    """Draw the BTC explainer box; return the y just below it."""
+    bullets = btc_box_lines(draw, fonts)
+    height = btc_box_height(draw, fonts)
+    draw.rectangle((x, y, x + COL_W - 1, y + height - 1),
+                   fill=BTC_BOX_FILL, outline=BTC_BOX_BORDER, width=2)
+    tx = x + BTC_BOX_PAD_X
+    ty = y + BTC_BOX_PAD_TOP
+    draw.text((tx, ty), BTC_BOX_TITLE, font=fonts["box_title"],
+              fill=BTC_BOX_BORDER)
+    ty += BTC_BOX_TITLE_H + 2
+    draw.text((tx, ty), BTC_BOX_SUB, font=fonts["box_sub"], fill="#8a6d1a")
+    ty += BTC_BOX_SUB_H + 4
+    for lines in bullets:
+        for line in lines:
+            draw.text((tx, ty), line, font=fonts["box_bullet"], fill=INK)
+            ty += BTC_BOX_BULLET_LEADING
+    return y + height
+
+
 def measure_grid(draw, fonts):
     """Return per-column heights; raise if any column overflows."""
     region_map = {name: (colour, stories) for name, colour, stories in REGIONS}
@@ -234,11 +296,13 @@ def measure_grid(draw, fonts):
         total = 0
         for name in column:
             _, stories = region_map[name]
-            total += 24  # tinted section header + rule
+            total += 22  # tinted section header + rule
             for story in stories:
                 lines = split_lines(draw, story, fonts["story"], COL_W - 14)
-                total += len(lines) * 16 + 4
-            total += 5  # gap after a section
+                total += len(lines) * 14 + 3
+            if name == "MARKETS":
+                total += btc_box_height(draw, fonts)
+            total += 4  # gap after a section
         heights.append(total)
     return heights
 
@@ -275,13 +339,15 @@ def draw_grid(image, draw, fonts, grid_top):
             draw.rectangle((x, y - 2, x + COL_W, y + 19), fill=tint)
             draw.text((x + 4, y), name, font=fonts["region"], fill=colour)
             draw.line((x, y + 21, x + COL_W, y + 21), fill=colour, width=2)
-            y += 24
+            y += 22
             for story in stories:
                 draw.rectangle((x, y + 5, x + 7, y + 12), fill=colour)
                 bottom = paint_text(draw, story, fonts["story"], x + 14, y,
-                                    COL_W - 14, 16, fill=INK)
-                y = bottom + 4
-            y += 5
+                                    COL_W - 14, 14, fill=INK)
+                y = bottom + 3
+            if name == "MARKETS":
+                y = draw_btc_box(draw, fonts, x, y)
+            y += 4
         # Spot illustration in the dead space below the last section.
         draw_spot(image, draw, fonts, i, x, y + 4,
                   FOOTER_TOP - 8 - (y + 4))

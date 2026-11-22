@@ -47,6 +47,44 @@ for the Poland incursion, Denmark plot and war news; CoinDesk,
 TradingView, BigGo Finance, Stocktwits, IBD for the market rout; Reuters
 + IANS for sport; wire round-ups for the rest. Every story below is dated
 21 Nov 2026 or late 20 Nov and still the day's news.
+
+v6 REFRESH (22 Nov 2026 ~20:00 WIB, full-day 21 Nov check): seven
+swaps, each verified against a dated source before the swap, total
+still 50. (1) KYIV TOLL CORRECTED 11 -> 9: BBC/Kyiv Independent
+report at least 9 killed nationwide (7 Kyiv, 2 Lviv), 28 injured —
+v5's "11" matched no source. (2) BAYER $7.25BN ROUNDUP SETTLEMENT:
+Missouri judge gave final approval Fri 20 Nov, AP/NPR reported Sat
+21 Nov. (3) INDIA'S FIRST H5N1 CHICKEN VACCINE: ICAR-NIHSAD, dedicated
+Fri 20 Nov in Bhopal (PIB) — rank-1 rival mislabels it H3N1; it is
+H5N1 clade 2.3.2.1a. (4) NSE OVERTAKES NASDAQ: 5th-biggest listed
+exchange, $59.7bn, milestone Fri 20 Nov, ANI/TradingView reported
+Sat 21 Nov. (5) COALITION SMASHES 6 HOUTHI WORKSHOPS: coalition
+announced Fri 20 Nov, 7 targets + 6 workshops + supply depot in
+Sana'a. (6) BEPICOLOMBO REACHES MERCURY AFTER 8 YEARS: ESA orbit
+insertion 19:24 CET Sat 21 Nov. (7) LEEDS STUN CHELSEA 4-1 AT THE
+BRIDGE: Sat 21 Nov, first Leeds PL win at Stamford Bridge in 27
+years (Irish Times). (8) ANTONELLI FASTEST, VERSTAPPEN ON POLE IN
+VEGAS: Las Vegas GP qualifying, Fri evening Vegas = Sat 21 Nov WIB.
+Replaced, weakest first: Indian murder-plot sentencing (Americas),
+Taliban Kandahar-radio cricket ban + Kim/Laos ties (Asia), Iraq
+troops into Hezbollah stronghold (Middle East), Morocco arms-industry
+bet (Africa — Africa now 1 story, Science now 3), Dodgers/Royce
+Lewis trade + UAE Bulls T10 title (Sport).
+
+DELIBERATELY NOT INCLUDED (verified, wrong date for 21 Nov):
+COP31 collapse — the final text was tabled early SUNDAY 22 Nov and
+the plenary rejected it Sunday; Saturday's story stays "deadlocked".
+US clears 900,000 AI chips for China — House committee disclosure
+was Thu 19 Nov. n0n JPMorgan/Visa/Mastercard leak — published
+19 Nov, companies confirmed 19-20 Nov. HIMARS kills 20 Russian
+officers in Sumy — first tracked 19 Nov. NATO-for-Donbas (Kushner/
+Witkoff) — WSJ report Thu 19 Nov; Zelenskyy revealed it 13 Nov.
+India 159/1 at stumps in Wellington — day 2 of the Test, 22 Nov.
+Indonesia fires $30bn — CELIOS study is an October estimate,
+released Fri 20 Nov; the $30.9bn is the high end of a range.
+Man City's late win at Liverpool — Sunday 22 Nov, not Saturday.
+Verstappen WINS the Las Vegas GP — the race is Sat 21 Nov Vegas
+time = Sun 22 Nov WIB; it belongs to the 22 Nov poster.
 """
 
 MASTHEAD = "THE WORLD TODAY"
@@ -67,7 +105,7 @@ STATS_LINE = (
 # (region, colour, headlines) — headlines are self-contained briefs.
 REGIONS = (
     ("EUROPE", "#7a1f1f", (
-        "KYIV UNDER FIRE: 11 DEAD AS 3 BRIDGES BLASTED",
+        "KYIV UNDER FIRE: 9 DEAD AS 3 BRIDGES BLASTED",
         "KRYVYI RIH HORROR: BOY, 7, KILLED; 42 WOUNDED",
         "DENMARK FOILS 'RUSSIAN PLOT' TO ASSASSINATE RAPPER",
         "ESTONIA SLAMS SHUT ITS RUSSIAN BORDER ON DEC 1",
@@ -82,8 +120,8 @@ REGIONS = (
         "WORLD COURT: MYANMAR GUILTY OF ROHINGYA GENOCIDE",
         "CYCLONE AKVAN SLAMS ODISHA — THEN LOSES ITS PUNCH",
         "TAIWAN EXPOSES CHINA-LINKED ACCOUNTS TO META",
-        "KIM'S NORTH KOREA FORGES CLOSER TIES WITH LAOS",
-        "TALIBAN SILENCES CRICKET ON KANDAHAR RADIO",
+        "INDIA'S FIRST H5N1 CHICKEN VACCINE",
+        "NSE OVERTAKES NASDAQ: 5TH-BIGGEST EXCHANGE",
         "19 YEARS FOR MURDER PLOT: INDIAN MAN JAILED IN US",
     )),
     ("MIDDLE EAST", "#8a6d1b", (
@@ -91,7 +129,7 @@ REGIONS = (
         "GAZA HORROR: 22,000 CHILDREN REPORTED DEAD",
         "HOUTHI MISSILES TARGET RIYADH — ALL SHOT DOWN",
         "YEMEN EXODUS: 357,000 FLEE SINCE AUGUST",
-        "IRAQ SENDS TROOPS INTO HEZBOLLAH STRONGHOLD",
+        "COALITION SMASHES 6 HOUTHI WORKSHOPS",
         "TEHRAN IN THE CROSSHAIRS AS US, ISRAEL WEIGH STRIKE",
     )),
     ("AMERICAS", "#2e6b34", (
@@ -99,14 +137,13 @@ REGIONS = (
         "CALIFORNIA SUBPOENAS NVIDIA — NVDA IN THE DOCK",
         "TRUMP SACKS CYBER CHIEF AMID US OUTAGE CHAOS",
         "PACIFIC SEABED THROWN OPEN TO DEEP-SEA MINING",
-        "US SNUBS CANADA — MILITARY TIES CURBED",
+        "BAYER'S $7.25BN ROUNDUP SETTLEMENT",
         "PALISADES ARSONIST CONVICTED",
         "4.2 QUAKE WAKES LOS ANGELES",
         "HIPPO FIONA DIES EATING A HAT",
     )),
     ("AFRICA", "#7a4a1f", (
         "EBOLA STALKS CONGO'S CHILDREN AS 100 SCHOOLS HIT",
-        "MOROCCO BETS €366M ON HOME-GROWN ARMS INDUSTRY",
     )),
     ("MARKETS", "#3d3d3d", (
         "WALL STREET BLEEDS: WORST WEEK SINCE 2020",
@@ -116,15 +153,16 @@ REGIONS = (
     )),
     ("SPORT & CULTURE", "#1f6b6b", (
         "KL RAHUL'S 93* DRAGS INDIA BACK IN WELLINGTON",
-        "UAE BULLS STORM TO BACK-TO-BACK ABU DHABI T10 TITLE",
+        "ANTONELLI FASTEST, VERSTAPPEN ON POLE IN VEGAS",
+        "LEEDS STUN CHELSEA 4-1 AT THE BRIDGE",
         "MEDVEDEV DOWNS TIAFOE AT THE ATP FINALS",
         "VOYAGER 1 MAKES HISTORY: ONE LIGHT-DAY FROM EARTH",
         "HUNGER GAMES PREQUEL OPENS",
         "SPEED BEATS GTA 6, LOSES SAVE",
-        "DODGERS LAND ROYCE LEWIS",
     )),
     ("SCIENCE & HEALTH", "#6b3a7a", (
         "CANCER PILL: 60% RESPOND",
+        "BEPICOLOMBO REACHES MERCURY AFTER 8 YEARS",
         "AI CLAIMS RIEMANN PROOF",
     )),
 )

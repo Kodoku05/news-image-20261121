@@ -87,19 +87,19 @@ REGION_COUNTS = {
     "ASIA-PACIFIC": 7,
     "MIDDLE EAST": 6,
     "AMERICAS": 8,
-    "AFRICA": 2,
+    "AFRICA": 1,
     "MARKETS": 4,
     "SPORT & CULTURE": 7,
-    "SCIENCE & HEALTH": 2,
+    "SCIENCE & HEALTH": 3,
 }
 
-SUB_HEAD = ("Russian missiles land in Poland  ·  Kyiv barrage kills 11  ·  "
+SUB_HEAD = ("Russian missiles land in Poland  ·  Kyiv barrage kills 9  ·  "
             "COP31 deadlocked in overtime  ·  Wall Street's worst week "
             "since 2020")
 
 # (number, big number, caption) — every figure comes from our stories.
 STATS = (
-    ("11", "killed in the Kyiv barrage"),
+    ("9", "killed in the Ukraine barrage"),
     ("22,000", "children reported dead in Gaza"),
     ("357,000", "displaced in Yemen since August"),
     ("465", "hybrid attacks in Europe in 90 days"),
@@ -118,8 +118,8 @@ LEADS = (
      "'intentional' as Rutte flies to Warsaw.",
      "hero"),
     (2, "KYIV, UKRAINE · WAR",
-     "KYIV UNDER FIRE: 11 DEAD AS 3 BRIDGES BLASTED",
-     "Eleven dead and three bridges struck as Moscow's barrage hammers "
+     "KYIV UNDER FIRE: 9 DEAD AS 3 BRIDGES BLASTED",
+     "Nine dead and three bridges struck as Moscow's barrage hammers "
      "the capital; the attack spills into Poland.",
      "kyiv"),
     (3, "ANTALYA, TÜRKIYE · CLIMATE",
@@ -528,10 +528,6 @@ def draw_also(draw, fonts, top):
     display = {
         "TEHRAN IN THE CROSSHAIRS AS US, ISRAEL WEIGH STRIKE":
             "US, ISRAEL WEIGH STRIKE ON TEHRAN",
-        "MOROCCO BETS €366M ON HOME-GROWN ARMS INDUSTRY":
-            "MOROCCO BETS €366M ON HOME-GROWN ARMS",
-        "UAE BULLS STORM TO BACK-TO-BACK ABU DHABI T10 TITLE":
-            "UAE BULLS RETAIN ABU DHABI T10 TITLE",
     }
     draw.rectangle((MARGIN, top, RIGHT - 1, top + ALSO_HEAD_H - 1),
                    fill=NAVY)
